@@ -179,6 +179,20 @@ class VersionQuerySet(models.QuerySet):
                     .annotate(latest_pk=models.Max("pk"))
                     .values("latest_pk")
                 )
+        elif connection.vendor == 'mysql':
+            model_qs = (
+                model._default_manager
+                .using(model_db)
+                .filter(pk=models.OuterRef("object_id"))
+            )
+            subquery = (
+                self.get_for_model(model, model_db=model_db)
+                .annotate(pk_not_exists=~models.Exists(model_qs))
+                .filter(pk_not_exists=True)
+                .values("object_id")
+                .annotate(latest_pk=models.Max("pk"))
+                .values("latest_pk")
+            )
         else:
             # We have to use a slow subquery.
             subquery = self.get_for_model(model, model_db=model_db).exclude(
